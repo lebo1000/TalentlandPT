@@ -71,54 +71,73 @@ document.getElementById('btn-submit-answer').addEventListener('click', () => {
 });
 
 // ── Voting ────────────────────────────────────────────────────────────────────
+// votes map: answerId -> selectedPlayerId
+let myVotes = {};
+let votablePlayers = [];
+let answersToVote = [];
+
 socket.on('voting-started', ({ answers, players }) => {
-  currentAnswers = answers;
-  selectedVote = null;
+  myVotes = {};
+  votablePlayers = players;
+  // Only show answers that aren't mine (server sends all, we filter by id)
+  // Server sends answers as [{ id: socketId, text }] — filter out my own
+  answersToVote = answers.filter(a => a.id !== socket.id);
 
-  // Show all answers and ask player to guess who said each one
-  // Simplified: show all answers, player picks one person they think said the FIRST answer
-  // For a richer UX we show all answers and let them pick a name for each
-  // Here: show all answers on screen, player picks a name (one vote total)
-
-  // Display the first answer that isn't theirs (or just all of them)
-  // We'll show all answers and ask them to pick who said them collectively
-  // Simplest fun approach: show all answers, pick one name you think said the most interesting one
-
-  // Actually let's show all answers and have them vote on who said answer #1
-  // (the server tracks one vote per player)
-
-  const firstAnswer = answers[0];
-  if (!firstAnswer) {
+  if (answersToVote.length === 0) {
+    // I'm the only one who answered, skip straight to waiting
+    socket.emit('submit-votes', {});
     showScreen('screen-vote-sent');
     return;
   }
 
-  document.getElementById('vote-answer-text').textContent = `"${firstAnswer.text}"`;
-
-  const optionsContainer = document.getElementById('vote-options');
-  optionsContainer.innerHTML = players
-    .filter(p => p.name !== myName) // can't vote for yourself
-    .map(p => `
-      <button class="vote-option" data-id="${p.id}" onclick="selectVote(this, '${p.id}')">
-        ${escHtml(p.name)}
-      </button>
-    `).join('');
-
+  renderVoteCards();
   document.getElementById('btn-submit-vote').disabled = true;
   showScreen('screen-vote');
 });
 
-function selectVote(el, id) {
-  selectedVote = id;
-  document.querySelectorAll('.vote-option').forEach(b => b.classList.remove('selected'));
-  el.classList.add('selected');
-  document.getElementById('btn-submit-vote').disabled = false;
+function renderVoteCards() {
+  const otherPlayers = votablePlayers.filter(p => p.id !== socket.id);
+  const container = document.getElementById('vote-cards');
+
+  container.innerHTML = answersToVote.map((a, i) => `
+    <div class="card" style="padding:16px;">
+      <p style="font-size:0.95rem; font-weight:700; margin-bottom:12px; color:var(--accent2);">
+        Respuesta ${i + 1}:
+      </p>
+      <p style="font-size:1rem; margin-bottom:14px; line-height:1.4;">"${escHtml(a.text)}"</p>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${otherPlayers.map(p => `
+          <button
+            class="vote-option"
+            data-answer="${a.id}"
+            data-player="${p.id}"
+            onclick="selectVoteFor('${a.id}', '${p.id}', this)"
+          >${escHtml(p.name)}</button>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  checkAllVoted();
 }
-window.selectVote = selectVote;
+
+function selectVoteFor(answerId, playerId, el) {
+  // Deselect other buttons for this answer
+  document.querySelectorAll(`[data-answer="${answerId}"]`)
+    .forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  myVotes[answerId] = playerId;
+  checkAllVoted();
+}
+window.selectVoteFor = selectVoteFor;
+
+function checkAllVoted() {
+  const allVoted = answersToVote.every(a => myVotes[a.id]);
+  document.getElementById('btn-submit-vote').disabled = !allVoted;
+}
 
 document.getElementById('btn-submit-vote').addEventListener('click', () => {
-  if (!selectedVote) return;
-  socket.emit('submit-vote', selectedVote);
+  socket.emit('submit-votes', myVotes);
   document.getElementById('btn-submit-vote').disabled = true;
   showScreen('screen-vote-sent');
 });

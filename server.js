@@ -109,21 +109,26 @@ io.on('connection', (socket) => {
     if (game.phase === 'answering') startVoting();
   });
 
-  // Player submits vote
-  socket.on('submit-vote', (guessedId) => {
+  // Player submits votes (map of answerId -> guessedPlayerId)
+  socket.on('submit-votes', (votesMap) => {
     if (game.phase !== 'voting') return;
     if (!game.players[socket.id]) return;
-    if (socket.id === guessedId) return; // can't vote for yourself
-    game.votes[socket.id] = guessedId;
+    // Store each vote: { voterId, answerId, guessedId }
+    Object.entries(votesMap).forEach(([answerId, guessedId]) => {
+      if (!game.votes[answerId]) game.votes[answerId] = {};
+      game.votes[answerId][socket.id] = guessedId;
+    });
 
-    const voters = Object.keys(game.players).filter(id => game.answers[id] !== undefined
-      ? true  // only players who answered can vote
-      : false
-    );
-    // Actually all players vote
-    const totalVoters = Object.keys(game.players).length;
-    const totalVotes = Object.keys(game.votes).length;
-    if (totalVotes >= totalVoters) revealResults();
+    // Check if all players who answered have voted
+    const answerers = Object.keys(game.answers);
+    const allVoted = answerers.every(id => {
+      // This player needs to have voted on all answers except their own
+      const othersAnswers = answerers.filter(a => a !== id);
+      return othersAnswers.every(answerId =>
+        game.votes[answerId] && game.votes[answerId][id] !== undefined
+      );
+    });
+    if (allVoted) revealResults();
   });
 
   // Host manually advances to results
@@ -165,7 +170,7 @@ io.on('connection', (socket) => {
 
 function startVoting() {
   game.phase = 'voting';
-  // Send answers shuffled, without revealing who said what
+  game.votes = {}; // answerId -> { voterId: guessedId }
   const shuffled = Object.entries(game.answers)
     .map(([id, text]) => ({ id, text }))
     .sort(() => Math.random() - 0.5);
@@ -178,48 +183,38 @@ function startVoting() {
 function revealResults() {
   game.phase = 'results';
 
-  // Calculate scores: 1 point per correct guess
-  Object.entries(game.votes).forEach(([voterId, guessedId]) => {
-    if (game.answers[guessedId] !== undefined) {
-      // Check if the guess was correct (guessedId actually said that answer)
-      // The voter guessed that guessedId said their answer — correct if guessedId is in answers
-      // We need to check: did voter guess the right person for ANY answer?
-      // Simpler: voter picks a name for a specific answer shown. We track per-answer voting.
-      // Current model: voter submits ONE guessedId (the person they think said the current answer)
-      // For multi-answer rounds we'd need a different model.
-      // Here: each player votes on WHO they think said the highlighted answer.
-      // Score: correct guess = 1 point for voter, 1 point for the person who "fooled" nobody
-    }
-  });
-
-  // Revised scoring: for each answer, count how many people correctly identified the author
-  // Correct guesser gets 1 point; if nobody guessed you, you get a "mystery" bonus
-  const correctGuesses = {}; // answerId -> count of correct guesses
-  Object.entries(game.votes).forEach(([voterId, guessedId]) => {
-    if (!correctGuesses[guessedId]) correctGuesses[guessedId] = 0;
-    correctGuesses[guessedId]++;
-  });
-
-  // Points: 1 per correct vote you received (others knew you), 
-  //         2 bonus if nobody guessed you (you're mysterious!)
-  Object.keys(game.answers).forEach(id => {
-    const guessCount = correctGuesses[id] || 0;
-    let pts = guessCount; // 1 pt per person who correctly identified you
-    if (guessCount === 0) pts += 2; // mystery bonus
-    game.roundScores[id] = pts;
-    game.players[id].score += pts;
+  // game.votes structure: { answerId: { voterId: guessedId } }
+  // For each answer, count how many voters correctly identified the author
+  Object.keys(game.answers).forEach(answerId => {
+    const votesForThisAnswer = game.votes[answerId] || {};
+    let correctCount = 0;
+    Object.entries(votesForThisAnswer).forEach(([voterId, guessedId]) => {
+      if (guessedId === answerId) {
+        // Correct guess — voter gets 1 point
+        if (game.players[voterId]) game.players[voterId].score += 1;
+        correctCount++;
+      }
+    });
+    // Author scoring: mystery bonus if nobody guessed them
+    const authorPts = correctCount === 0 ? 2 : 0;
+    game.roundScores[answerId] = authorPts;
+    if (game.players[answerId]) game.players[answerId].score += authorPts;
   });
 
   const resultsPayload = {
-    answers: Object.entries(game.answers).map(([id, text]) => ({
-      id,
-      name: game.players[id]?.name || '?',
-      text,
-      points: game.roundScores[id] || 0,
-      votes: Object.entries(game.votes)
-        .filter(([, guessed]) => guessed === id)
-        .map(([voterId]) => game.players[voterId]?.name || '?'),
-    })),
+    answers: Object.entries(game.answers).map(([id, text]) => {
+      const votesForAnswer = game.votes[id] || {};
+      const correctVoters = Object.entries(votesForAnswer)
+        .filter(([, guessedId]) => guessedId === id)
+        .map(([voterId]) => game.players[voterId]?.name || '?');
+      return {
+        id,
+        name: game.players[id]?.name || '?',
+        text,
+        points: game.roundScores[id] || 0,
+        votes: correctVoters,
+      };
+    }),
     scores: getPublicPlayers(),
   };
 
