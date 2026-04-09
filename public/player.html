@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>¿Quién lo dijo? — Jugador</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ── JOIN ───────────────────────────────────────────────────────────────── -->
+<div id="screen-join" class="mobile-screen">
+  <div class="big-emoji">🧊</div>
+  <div class="logo" style="font-size:2rem;">¿Quién lo dijo?</div>
+  <p class="muted center">Escribe tu nombre para unirte al juego</p>
+  <input
+    id="name-input"
+    class="name-input"
+    type="text"
+    placeholder="Tu nombre..."
+    maxlength="24"
+    autocomplete="off"
+  />
+  <button class="btn-primary" id="btn-join" style="width:100%;">Unirme al juego</button>
+  <p class="muted center" id="join-error" style="color:#ff5252;"></p>
+</div>
+
+<!-- ── WAITING LOBBY ──────────────────────────────────────────────────────── -->
+<div id="screen-waiting" class="mobile-screen hidden">
+  <div class="big-emoji">👋</div>
+  <div class="section-title" id="welcome-name"></div>
+  <p class="muted center">Esperando a que el host inicie la ronda...</p>
+  <div class="waiting-anim">
+    <span></span><span></span><span></span>
+  </div>
+  <div id="waiting-players" style="width:100%;"></div>
+</div>
+
+<!-- ── ANSWERING ──────────────────────────────────────────────────────────── -->
+<div id="screen-answer" class="mobile-screen hidden">
+  <p class="muted center" id="player-round-label">Ronda 1</p>
+  <div class="section-title" id="player-question"></div>
+  <textarea
+    id="answer-input"
+    placeholder="Escribe tu respuesta aquí..."
+    maxlength="120"
+  ></textarea>
+  <button class="btn-success" id="btn-submit-answer" style="width:100%;">
+    Enviar respuesta ✓
+  </button>
+</div>
+
+<!-- ── ANSWER SENT ─────────────────────────────────────────────────────────── -->
+<div id="screen-answer-sent" class="mobile-screen hidden">
+  <div class="big-emoji">✅</div>
+  <div class="section-title">¡Respuesta enviada!</div>
+  <p class="muted center">Espera a que todos respondan...</p>
+  <div class="waiting-anim">
+    <span></span><span></span><span></span>
+  </div>
+</div>
+
+<!-- ── VOTING ─────────────────────────────────────────────────────────────── -->
+<div id="screen-vote" class="mobile-screen hidden">
+  <div class="section-title">¿Quién lo dijo?</div>
+  <p class="muted center" id="vote-answer-text"></p>
+  <p style="font-size:0.9rem; color:var(--muted); text-align:center;">
+    Elige quién crees que dijo esa respuesta
+  </p>
+  <div id="vote-options" style="width:100%; display:flex; flex-direction:column; gap:10px;"></div>
+  <button class="btn-primary" id="btn-submit-vote" style="width:100%;" disabled>
+    Confirmar voto
+  </button>
+</div>
+
+<!-- ── VOTE SENT ───────────────────────────────────────────────────────────── -->
+<div id="screen-vote-sent" class="mobile-screen hidden">
+  <div class="big-emoji">🗳️</div>
+  <div class="section-title">¡Voto enviado!</div>
+  <p class="muted center">Esperando los resultados...</p>
+  <div class="waiting-anim">
+    <span></span><span></span><span></span>
+  </div>
+</div>
+
+<!-- ── RESULTS ────────────────────────────────────────────────────────────── -->
+<div id="screen-player-results" class="mobile-screen hidden">
+  <div class="big-emoji" id="result-emoji">🎉</div>
+  <div class="section-title" id="result-title">Resultados</div>
+  <p class="muted center" id="result-points"></p>
+  <div class="score-list" id="player-score-list" style="width:100%;"></div>
+  <p class="muted center" style="margin-top:8px;">Espera la siguiente ronda...</p>
+</div>
+
+<!-- ── GAME OVER / RESET ───────────────────────────────────────────────────── -->
+<div id="screen-reset" class="mobile-screen hidden">
+  <div class="big-emoji">🔄</div>
+  <div class="section-title">El juego fue reiniciado</div>
+  <p class="muted center">Recarga la página para unirte de nuevo</p>
+  <button class="btn-primary" onclick="location.reload()" style="width:100%;">
+    Volver a unirme
+  </button>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="player.js"></script>
+</body>
+</html>
