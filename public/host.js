@@ -12,7 +12,9 @@ function showScreen(id) {
 }
 
 // ── Lobby ─────────────────────────────────────────────────────────────────────
-const baseUrl = `${location.protocol}//${location.hostname}:${location.port || 3000}`;
+const baseUrl = location.port
+  ? `${location.protocol}//${location.hostname}:${location.port}`
+  : `${location.protocol}//${location.hostname}`;
 socket.emit('get-qr', baseUrl);
 
 socket.on('qr-ready', ({ qr, url }) => {
